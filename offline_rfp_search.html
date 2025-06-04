@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Offline RFP Search</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 2em; max-width: 800px; margin: auto; }
+    input { width: 100%; padding: 10px; margin-bottom: 20px; font-size: 16px; }
+    .result { margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 6px; }
+    .result h4 { margin: 0 0 10px 0; }
+  </style>
+</head>
+<body>
+  <h2>Offline RFP Search</h2>
+  <input type="text" id="searchBox" placeholder="Ask your RFP question..." />
+  <div id="results"></div>
+
+  <script>
+    let data = [];
+    let searchInput = document.getElementById("searchBox");
+    let resultsDiv = document.getElementById("results");
+
+    // Load the data
+    fetch("rfp_data_with_embeddings.json")
+      .then(res => res.json())
+      .then(json => data = json);
+
+    // Fake embedder for demo (simulates embedding for a query)
+    function fakeEmbed(text) {
+      let seed = Math.abs(Array.from(text).reduce((a, c) => a + c.charCodeAt(0), 0)) % 10000;
+      let vec = Array(1536).fill(0).map((_, i) => Math.sin(seed * (i + 1)) % 1);
+      return vec;
+    }
+
+    function cosineSimilarity(a, b) {
+      let dot = 0, normA = 0, normB = 0;
+      for (let i = 0; i < a.length; i++) {
+        dot += a[i] * b[i];
+        normA += a[i] * a[i];
+        normB += b[i] * b[i];
+      }
+      return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+    }
+
+    function search(query) {
+      let qVec = fakeEmbed(query);
+      let scored = data.map(entry => {
+        return { ...entry, score: cosineSimilarity(qVec, entry.embedding) };
+      });
+      scored.sort((a, b) => b.score - a.score);
+      return scored.slice(0, 5);
+    }
+
+    searchInput.addEventListener("input", () => {
+      let query = searchInput.value.trim();
+      if (!query) {
+        resultsDiv.innerHTML = "";
+        return;
+      }
+
+      let results = search(query);
+      resultsDiv.innerHTML = results.map(r => `
+        <div class="result">
+          <h4>Q: ${r.question}</h4>
+          <p><strong>Answer:</strong> ${r.answer}</p>
+          <p><small><em>Score: ${r.score.toFixed(3)}</em></small></p>
+        </div>
+      `).join("");
+    });
+  </script>
+</body>
+</html>
